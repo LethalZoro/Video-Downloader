@@ -426,8 +426,7 @@ def main():
                                 st.error(f"❌ Error downloading video: {e}")
                             except Exception as e:
                                 st.error(f"❌ An unexpected error occurred: {e}")
-                            else:
-                                st.error("❌ Download failed. Please try again.")
+                            
                     else:
                         st.error("❌ Failed to fetch video information. Please check the URL and try again.")
         else:
