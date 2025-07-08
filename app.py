@@ -145,64 +145,132 @@ def main():
     </style>
     
     <script>
-    // Auto-scroll functionality
+    // Auto-scroll functionality with improved detection
+    let scrollTimeout;
+    let isAutoScrollEnabled = true;
+    
     function smoothScrollToBottom() {
-        window.scrollTo({
-            top: document.body.scrollHeight,
-            behavior: 'smooth'
-        });
+        if (!isAutoScrollEnabled) return;
+        
+        // Clear any pending scroll
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(function() {
+            const maxScroll = Math.max(
+                document.body.scrollHeight,
+                document.documentElement.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.offsetHeight,
+                document.body.clientHeight,
+                document.documentElement.clientHeight
+            );
+            
+            window.scrollTo({
+                top: maxScroll,
+                behavior: 'smooth'
+            });
+        }, 100);
     }
     
-    // Observer to detect new content being added
+    // More aggressive content detection
     function setupAutoScroll() {
+        // Use multiple observers for better detection
+        const targetNode = document.querySelector('.main') || document.body;
+        
         const observer = new MutationObserver(function(mutations) {
-            let shouldScroll = false;
+            let hasNewContent = false;
             
             mutations.forEach(function(mutation) {
-                // Check if new nodes were added
                 if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    // Check if any added node contains significant content
                     mutation.addedNodes.forEach(function(node) {
                         if (node.nodeType === Node.ELEMENT_NODE) {
-                            // Look for Streamlit content containers
-                            if (node.querySelector('.stMarkdown, .stProgress, .stSpinner, .stSuccess, .stError, .stWarning, .stInfo') ||
-                                node.classList.contains('stMarkdown') ||
-                                node.classList.contains('stProgress') ||
-                                node.classList.contains('stSpinner') ||
-                                node.classList.contains('stSuccess') ||
-                                node.classList.contains('stError') ||
-                                node.classList.contains('stWarning') ||
-                                node.classList.contains('stInfo')) {
-                                shouldScroll = true;
+                            // More comprehensive content detection
+                            if (node.tagName === 'DIV' || 
+                                node.querySelector && (
+                                    node.querySelector('.stMarkdown') ||
+                                    node.querySelector('.stProgress') ||
+                                    node.querySelector('.stSpinner') ||
+                                    node.querySelector('.stAlert') ||
+                                    node.querySelector('.stSuccess') ||
+                                    node.querySelector('.stError') ||
+                                    node.querySelector('.stWarning') ||
+                                    node.querySelector('.stInfo') ||
+                                    node.querySelector('[data-testid]') ||
+                                    node.querySelector('.element-container')
+                                )) {
+                                hasNewContent = true;
                             }
                         }
                     });
                 }
             });
             
-            if (shouldScroll) {
-                // Small delay to ensure content is rendered
-                setTimeout(smoothScrollToBottom, 100);
+            if (hasNewContent) {
+                smoothScrollToBottom();
             }
         });
         
-        // Start observing the document body for changes
-        observer.observe(document.body, {
+        observer.observe(targetNode, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: false,
+            characterData: false
         });
         
-        // Also scroll when window is resized (mobile orientation change, etc.)
-        window.addEventListener('resize', function() {
-            setTimeout(smoothScrollToBottom, 300);
+        // Also observe attribute changes that might indicate content updates
+        const attrObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && 
+                    (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
+                    smoothScrollToBottom();
+                }
+            });
         });
+        
+        attrObserver.observe(targetNode, {
+            attributes: true,
+            subtree: true,
+            attributeFilter: ['style', 'class']
+        });
+        
+        // Periodic scroll check for missed content
+        setInterval(function() {
+            const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            
+            // If we're not at the bottom and should be, scroll down
+            if (maxScroll - currentScroll > 50) {
+                smoothScrollToBottom();
+            }
+        }, 1000);
     }
     
-    // Initialize auto-scroll when page loads
-    document.addEventListener('DOMContentLoaded', setupAutoScroll);
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupAutoScroll);
+    } else {
+        setupAutoScroll();
+    }
     
-    // Also setup auto-scroll after a delay in case DOM was already loaded
+    // Backup initialization
     setTimeout(setupAutoScroll, 500);
+    setTimeout(setupAutoScroll, 2000);
+    
+    // Force scroll function for manual triggering
+    window.forceScrollToBottom = function() {
+        setTimeout(function() {
+            const maxScroll = Math.max(
+                document.body.scrollHeight,
+                document.documentElement.scrollHeight
+            );
+            window.scrollTo({
+                top: maxScroll,
+                behavior: 'smooth'
+            });
+        }, 100);
+    };
     </script>
     """, unsafe_allow_html=True)
     
@@ -246,15 +314,19 @@ def main():
                     if info:
                         st.subheader("📹 Video Details")
                         
-                        # Auto-scroll to show video details
+                        # Trigger auto-scroll to show video details
                         st.markdown("""
                             <script>
+                            // Multiple fallback scroll triggers
                             setTimeout(function() {
-                                window.scrollTo({
-                                    top: document.body.scrollHeight,
-                                    behavior: 'smooth'
-                                });
-                            }, 300);
+                                if (typeof smoothScrollToBottom === 'function') {
+                                    smoothScrollToBottom();
+                                } else if (typeof window.forceScrollToBottom === 'function') {
+                                    window.forceScrollToBottom();
+                                } else {
+                                    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+                                }
+                            }, 200);
                             </script>
                         """, unsafe_allow_html=True)
                         
@@ -274,15 +346,18 @@ def main():
                         st.markdown("---")  # Simple divider
                         st.subheader("⬇️ Downloading Video...")
                         
-                        # Auto-scroll to download section
+                        # Trigger auto-scroll to download section
                         st.markdown("""
                             <script>
                             setTimeout(function() {
-                                window.scrollTo({
-                                    top: document.body.scrollHeight,
-                                    behavior: 'smooth'
-                                });
-                            }, 500);
+                                if (typeof smoothScrollToBottom === 'function') {
+                                    smoothScrollToBottom();
+                                } else if (typeof window.forceScrollToBottom === 'function') {
+                                    window.forceScrollToBottom();
+                                } else {
+                                    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+                                }
+                            }, 300);
                             </script>
                         """, unsafe_allow_html=True)
                         
@@ -311,15 +386,18 @@ def main():
                                     </div>
                                 """, unsafe_allow_html=True)
                                 
-                                # Auto-scroll to completion section
+                                # Trigger auto-scroll to completion section
                                 st.markdown("""
                                     <script>
                                     setTimeout(function() {
-                                        window.scrollTo({
-                                            top: document.body.scrollHeight,
-                                            behavior: 'smooth'
-                                        });
-                                    }, 600);
+                                        if (typeof smoothScrollToBottom === 'function') {
+                                            smoothScrollToBottom();
+                                        } else if (typeof window.forceScrollToBottom === 'function') {
+                                            window.forceScrollToBottom();
+                                        } else {
+                                            window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+                                        }
+                                    }, 400);
                                     </script>
                                 """, unsafe_allow_html=True)
                                 
@@ -373,10 +451,16 @@ def main():
                                         setTimeout(function() {{
                                             document.getElementById('download-link').click();
                                         }}, 800);
-                                        // Scroll to bottom
+                                        // Trigger final scroll to bottom with multiple fallbacks
                                         setTimeout(function() {{
-                                            window.scrollTo(0, document.body.scrollHeight);
-                                        }}, 200);
+                                            if (typeof smoothScrollToBottom === 'function') {{
+                                                smoothScrollToBottom();
+                                            }} else if (typeof window.forceScrollToBottom === 'function') {{
+                                                window.forceScrollToBottom();
+                                            }} else {{
+                                                window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
+                                            }}
+                                        }}, 500);
                                     </script>
                                 """, unsafe_allow_html=True)
                             else:
