@@ -378,14 +378,6 @@ def main():
                             video_file = download_video(video_url, download_path)
                             if video_file and os.path.exists(video_file):
                                 
-                                # Success section
-                                st.markdown("""
-                                    <div class="success-box">
-                                        <h3>🎉 Download Complete!</h3>
-                                        <p>Your video has been successfully downloaded and is ready!</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                                
                                 # Trigger auto-scroll to completion section
                                 st.markdown("""
                                     <script>
@@ -407,43 +399,27 @@ def main():
                                 file_size = os.path.getsize(video_file)
                                 file_size_mb = file_size / (1024 * 1024)
                                 
-                                st.markdown("### 📁 File Information")
-                                col_info1, col_info2 = st.columns(2)
-                                
-                                with col_info1:
-                                    st.markdown(f"**📄 Filename:** `{file_name}`")
-                                    st.markdown(f"**📏 File Size:** `{file_size_mb:.2f} MB`")
-                                
-                                with col_info2:
-                                    st.markdown('<div class="location-label">📍 Location:</div>', unsafe_allow_html=True)
-                                    st.markdown(f'<div class="path-display">{full_path}</div>', unsafe_allow_html=True)
-                                
-                                # File actions with JavaScript (no page refresh)
-                                folder_path = os.path.dirname(full_path)
-                                
-                                
-                                # Download buttons section
-                                st.markdown("### 💾 Download Options")
-                                
-                                # Read file and create download button with auto-download
+                                # Read file and prepare download data
                                 with open(video_file, "rb") as file:
                                     file_data = file.read()
                                 
-                                # Create single download button (no page rerun)
                                 import base64
                                 b64_data = base64.b64encode(file_data).decode()
                                 
+                                # Success section with download functionality
                                 st.markdown(f"""
                                     <div style="text-align: center;">
                                         <a id="download-link" 
                                            href="data:video/mp4;base64,{b64_data}" 
                                            download="{file_name}"
-                                           style="display: inline-block; padding: 0.75rem 1.5rem; 
-                                                  background: linear-gradient(135deg, #ff4b4b, #ff6b6b); 
-                                                  color: white; text-decoration: none; border-radius: 8px; 
-                                                  font-weight: bold; box-shadow: 0 4px 15px rgba(255, 75, 75, 0.3);
-                                                  width: 100%;">
-                                            🔄 Download
+                                           style="display: block; text-decoration: none;">
+                                            <div class="success-box" style="cursor: pointer; transition: transform 0.2s;">
+                                                <h3>🎉 File Processed!</h3>
+                                                <p>Your file has been processed. Click to download.</p>
+                                                <p style="margin-top: 1rem; font-size: 0.9rem;">
+                                                    📄 {file_name} | 📏 {file_size_mb:.2f} MB
+                                                </p>
+                                            </div>
                                         </a>
                                     </div>
                                     <script>
@@ -461,6 +437,14 @@ def main():
                                                 window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
                                             }}
                                         }}, 500);
+                                        
+                                        // Add hover effect
+                                        document.querySelector('.success-box').addEventListener('mouseenter', function() {{
+                                            this.style.transform = 'scale(1.02)';
+                                        }});
+                                        document.querySelector('.success-box').addEventListener('mouseleave', function() {{
+                                            this.style.transform = 'scale(1)';
+                                        }});
                                     </script>
                                 """, unsafe_allow_html=True)
                             else:
