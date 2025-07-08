@@ -16,33 +16,6 @@ def get_video_info(url):
             st.error(f"Error extracting video info: {e}")
             return None
 
-def download_video(url, download_path='.'):
-    """
-    Downloads a video from the given URL using yt-dlp.
-    """
-    if not os.path.exists(download_path):
-        os.makedirs(download_path)
-
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': os.path.join(download_path, '%(title)s.%(ext)s'),
-        'noplaylist': True,
-        'quiet': True,
-        'progress_hooks': [progress_hook],
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            # st.info("Starting download...")
-            ydl.download([url])
-            return ydl.prepare_filename(ydl.extract_info(url, download=False))
-        except yt_dlp.utils.DownloadError as e:
-            st.error(f"Error downloading video: {e}")
-            return None
-        except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
-            return None
-
 def progress_hook(d):
     """
     Hook for yt-dlp to show download progress in Streamlit.
@@ -50,21 +23,14 @@ def progress_hook(d):
     if d['status'] == 'downloading':
         total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
         if total_bytes:
-            progress = (d['downloaded_bytes'] / total_bytes) * 100
+            progress = (d['downloaded_bytes'] / total_bytes)
             # Create a progress bar that updates
             if not hasattr(st.session_state, 'progress_bar'):
                 st.session_state.progress_bar = st.progress(0)
-            st.session_state.progress_bar.progress(progress / 100)
-            
-            # Show download speed and ETA if available
-            speed = d.get('speed')
-            eta = d.get('eta')
-            if speed and eta:
-                st.info(f"Speed: {speed/1024/1024:.1f} MB/s | ETA: {eta}s | Progress: {progress:.1f}%")
+            st.session_state.progress_bar.progress(progress, text=f"Downloading... {int(progress * 100)}%")
     elif d['status'] == 'finished':
         if hasattr(st.session_state, 'progress_bar'):
-            st.session_state.progress_bar.progress(1.0)
-        # st.success("✅ Download complete!")
+            st.session_state.progress_bar.progress(1.0, text="Download complete! Preparing file...")
 
 
 def main():
@@ -363,7 +329,7 @@ def main():
                         
                         # Then proceed with download
                         with st.spinner("📥 Downloading video..."):
-                            download_path = "."
+                            download_path = "downloads"
                             
                             # Initialize progress tracking
                             if 'progress_bar' in st.session_state:
@@ -372,81 +338,94 @@ def main():
                             # Create progress placeholder
                             progress_placeholder = st.empty()
                             with progress_placeholder.container():
-                                # st.info("Initializing download...")
-                                st.session_state.progress_bar = st.progress(0)
+                                st.session_state.progress_bar = st.progress(0, text="Starting download...")
                             
-                            video_file = download_video(video_url, download_path)
-                            if video_file and os.path.exists(video_file):
-                                
-                                # Trigger auto-scroll to completion section
-                                st.markdown("""
-                                    <script>
-                                    setTimeout(function() {
-                                        if (typeof smoothScrollToBottom === 'function') {
-                                            smoothScrollToBottom();
-                                        } else if (typeof window.forceScrollToBottom === 'function') {
-                                            window.forceScrollToBottom();
-                                        } else {
-                                            window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
-                                        }
-                                    }, 400);
-                                    </script>
-                                """, unsafe_allow_html=True)
-                                
-                                # File info section
-                                full_path = os.path.abspath(video_file)
-                                file_name = os.path.basename(video_file)
-                                file_size = os.path.getsize(video_file)
-                                file_size_mb = file_size / (1024 * 1024)
-                                
-                                # Read file and prepare download data
-                                with open(video_file, "rb") as file:
-                                    file_data = file.read()
-                                
-                                import base64
-                                b64_data = base64.b64encode(file_data).decode()
-                                
-                                # Success section with download functionality
-                                st.markdown(f"""
-                                    <div style="text-align: center;">
-                                        <a id="download-link" 
-                                           href="data:video/mp4;base64,{b64_data}" 
-                                           download="{file_name}"
-                                           style="display: block; text-decoration: none;">
-                                            <div class="success-box" style="cursor: pointer; transition: transform 0.2s;">
+                            # Download using more efficient approach
+                            if not os.path.exists(download_path):
+                                os.makedirs(download_path)
+
+                            ydl_opts = {
+                                'format': 'best',
+                                'outtmpl': os.path.join(download_path, '%(title)s.%(ext)s'),
+                                'noplaylist': True,
+                                'quiet': True,
+                                'progress_hooks': [progress_hook],
+                            }
+
+                            try:
+                                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                    # Extract info to get the filename
+                                    info_dict = ydl.extract_info(video_url, download=True)
+                                    video_file = ydl.prepare_filename(info_dict)
+
+                                    if video_file and os.path.exists(video_file):
+                                        
+                                        # Trigger auto-scroll to completion section
+                                        st.markdown("""
+                                            <script>
+                                            setTimeout(function() {
+                                                if (typeof smoothScrollToBottom === 'function') {
+                                                    smoothScrollToBottom();
+                                                } else if (typeof window.forceScrollToBottom === 'function') {
+                                                    window.forceScrollToBottom();
+                                                } else {
+                                                    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+                                                }
+                                            }, 400);
+                                            </script>
+                                        """, unsafe_allow_html=True)
+                                        
+                                        # File info section
+                                        file_name = os.path.basename(video_file)
+                                        file_size = os.path.getsize(video_file)
+                                        file_size_mb = file_size / (1024 * 1024)
+                                        
+                                        # Success section with integrated download functionality
+                                        st.markdown(f"""
+                                            <div class="success-box">
                                                 <h3>🎉 File Processed!</h3>
                                                 <p>Your file has been processed. Click to download.</p>
                                                 <p style="margin-top: 1rem; font-size: 0.9rem;">
                                                     📄 {file_name} | 📏 {file_size_mb:.2f} MB
                                                 </p>
                                             </div>
-                                        </a>
-                                    </div>
-                                    <script>
-                                        // Auto-download after a short delay
-                                        setTimeout(function() {{
-                                            document.getElementById('download-link').click();
-                                        }}, 800);
-                                        // Trigger final scroll to bottom with multiple fallbacks
-                                        setTimeout(function() {{
-                                            if (typeof smoothScrollToBottom === 'function') {{
-                                                smoothScrollToBottom();
-                                            }} else if (typeof window.forceScrollToBottom === 'function') {{
-                                                window.forceScrollToBottom();
-                                            }} else {{
-                                                window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
-                                            }}
-                                        }}, 500);
+                                        """, unsafe_allow_html=True)
                                         
-                                        // Add hover effect
-                                        document.querySelector('.success-box').addEventListener('mouseenter', function() {{
-                                            this.style.transform = 'scale(1.02)';
-                                        }});
-                                        document.querySelector('.success-box').addEventListener('mouseleave', function() {{
-                                            this.style.transform = 'scale(1)';
-                                        }});
-                                    </script>
-                                """, unsafe_allow_html=True)
+                                        # Memory-efficient download button styled as the success box
+                                        with open(video_file, "rb") as file:
+                                            st.download_button(
+                                                label="🔄 Download File",
+                                                data=file,
+                                                file_name=file_name,
+                                                mime="video/mp4",
+                                                use_container_width=True,
+                                                type="primary"
+                                            )
+                                        
+                                        # Clean up the downloaded file from the server after offering download
+                                        try:
+                                            os.remove(video_file)
+                                        except:
+                                            pass  # File might already be removed or in use
+                                        
+                                        # Final scroll
+                                        st.markdown("""
+                                            <script>
+                                            setTimeout(function() {
+                                                if (typeof smoothScrollToBottom === 'function') {
+                                                    smoothScrollToBottom();
+                                                }
+                                            }, 500);
+                                            </script>
+                                        """, unsafe_allow_html=True)
+                                        
+                                    else:
+                                        st.error("❌ Download failed. The file could not be found.")
+
+                            except yt_dlp.utils.DownloadError as e:
+                                st.error(f"❌ Error downloading video: {e}")
+                            except Exception as e:
+                                st.error(f"❌ An unexpected error occurred: {e}")
                             else:
                                 st.error("❌ Download failed. Please try again.")
                     else:
